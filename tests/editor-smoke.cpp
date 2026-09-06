@@ -7470,6 +7470,26 @@ bool runAreaLastRegionSmoke(QApplication &application, QString &error) {
   return true;
 }
 
+bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
+  CaptureData capture;
+  capture.monitor.geometry = QRect(100, 200, 800, 600);
+  capture.monitor.pixelSize = QSize(800, 600);
+  capture.monitor.scale = 1.0;
+  capture.source = QImage(800, 600, QImage::Format_ARGB32_Premultiplied);
+  capture.source.fill(QColor("#6480a0"));
+  capture.previewSize = capture.source.size();
+  CaptureEditor editor(capture);
+  editor.resize(800, 600);
+  editor.show();
+  application.processEvents();
+  if (editor.capturePointerPosition() != QPointF(400, 300)) {
+    error = QStringLiteral("capture pointer did not start at monitor center");
+    return false;
+  }
+  editor.close();
+  return true;
+}
+
 int main(int argc, char **argv) {
   // Re-executed by the instance-lock checks as the process holding the lock.
   const QString heldLockPath =
@@ -7530,6 +7550,10 @@ int main(int argc, char **argv) {
     return 0;
   }
   QString snapshotError;
+  if (!runKeyboardCaptureSmoke(application, snapshotError)) {
+    qCritical().noquote() << snapshotError;
+    return 130;
+  }
   if (!runAreaLastRegionSmoke(application, snapshotError)) {
     qWarning().noquote() << snapshotError;
     return 119;

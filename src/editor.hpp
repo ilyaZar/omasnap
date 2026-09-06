@@ -2,6 +2,7 @@
 
 #include "background-config.hpp"
 #include "capture.hpp"
+#include "capture-pointer.hpp"
 #include "cut.hpp"
 #include "overlay-chrome.hpp"
 #include "palette-config.hpp"
@@ -94,6 +95,7 @@ public:
   /** Current monitor data (background capture may be in flight). */
   const CaptureData &captureData() const { return capture_; }
   [[nodiscard]] QRectF currentSelection() const { return selection_; }
+  [[nodiscard]] QPointF capturePointerPosition() const { return cursor_; }
   /** Annotation-space canvas, including any strips grown past the source. */
   [[nodiscard]] QRectF currentCanvasForTest() const { return canvasRect_; }
   [[nodiscard]] CanvasBoundaryMode currentCanvasBoundaryForTest() const {
@@ -124,6 +126,8 @@ public:
   void setSuppressSnapshots(bool suppress) { suppressSnapshots_ = suppress; }
 
 protected:
+  void showEvent(QShowEvent *event) override;
+  void hideEvent(QHideEvent *event) override;
   bool eventFilter(QObject *watched, QEvent *event) override;
   void keyPressEvent(QKeyEvent *event) override;
   void keyReleaseEvent(QKeyEvent *event) override;
@@ -630,6 +634,7 @@ private:
   QRectF cropDragImageRect_;
   QRectF marqueeRect_;
   QPointF cursor_;
+  std::unique_ptr<CapturePointer> capturePointer_;
   bool dragging_ = false;
   bool creationConstraintActive_ = false;
   bool marqueeSelecting_ = false;

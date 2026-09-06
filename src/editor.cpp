@@ -936,6 +936,24 @@ CaptureEditor::~CaptureEditor() {
   removeWorking(workingLogPath());
 }
 
+void CaptureEditor::showEvent(QShowEvent *event) {
+  QWidget::showEvent(event);
+  if (captureMode_ == CaptureMode::File ||
+      captureMode_ == CaptureMode::Fullscreen)
+    return;
+  cursor_ = QPointF(width() / 2.0, height() / 2.0);
+  hoveredWindow_ = windowAt(cursor_);
+  if (QGuiApplication::platformName() == QStringLiteral("wayland")) {
+    capturePointer_ = std::make_unique<CapturePointer>(capture_.monitor.name);
+    capturePointer_->moveTo(QPointF(0.5, 0.5));
+  }
+}
+
+void CaptureEditor::hideEvent(QHideEvent *event) {
+  capturePointer_.reset();
+  QWidget::hideEvent(event);
+}
+
 bool CaptureEditor::eventFilter(QObject *watched, QEvent *event) {
   if (watched == textEditor_ && event->type() == QEvent::KeyPress) {
     auto *key = static_cast<QKeyEvent *>(event);

@@ -325,6 +325,8 @@ Install the corresponding Tesseract language data before adding a language to
 
 ### Capture selection
 
+The pointer starts at the center of the focused monitor.
+
 Tabs across the top of the overlay switch the capture kind: **Region**,
 **Window**, **Scrolling Region**, **Fullscreen**. All four are modes of the
 same overlay. Scrolling Region selects exactly like Region; once the region is
