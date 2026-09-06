@@ -84,6 +84,16 @@ constexpr qreal kToolbarGroupGap = 10;
 constexpr qreal kMinimumRedactionExtent = 5.0;
 constexpr int kBackdropDim = 143;
 
+QPointF captureKeyDirection(int key) {
+  switch (key) {
+  case Qt::Key_H: return {-1, 0};
+  case Qt::Key_J: return {0, 1};
+  case Qt::Key_K: return {0, -1};
+  case Qt::Key_L: return {1, 0};
+  default: return {};
+  }
+}
+
 qreal highlighterPreviewHeight(qreal annotationSize) {
   return std::max<qreal>(6.0, annotationSize * 3.0);
 }
@@ -681,6 +691,11 @@ CaptureEditor::CaptureEditor(CaptureData capture, CaptureMode mode,
     setGeometry(QGuiApplication::primaryScreen()->geometry());
   cursor_ = mapFromGlobal(QCursor::pos());
 
+  keyboardMotionTimer_.setInterval(16);
+  keyboardMotionTimer_.setTimerType(Qt::PreciseTimer);
+  connect(&keyboardMotionTimer_, &QTimer::timeout, this,
+          &CaptureEditor::advanceKeyboardPointer);
+
   // Constructing QPlainTextEdit initializes substantial style/layout state.
   // Keep it off the launch path; beginText() creates it on first use.
   textCaretTimer_.setInterval(530);
@@ -950,8 +965,47 @@ void CaptureEditor::showEvent(QShowEvent *event) {
 }
 
 void CaptureEditor::hideEvent(QHideEvent *event) {
+  stopKeyboardPointer();
   capturePointer_.reset();
   QWidget::hideEvent(event);
+}
+
+void CaptureEditor::stopKeyboardPointer() {
+  pointerKeys_.clear();
+  keyboardMotionTimer_.stop();
+}
+
+void CaptureEditor::focusOutEvent(QFocusEvent *event) {
+  stopKeyboardPointer();
+  QWidget::focusOutEvent(event);
+}
+
+void CaptureEditor::advanceKeyboardPointer() {
+  if (phase_ != Phase::Select || capturePending_ || !isVisible()) {
+    stopKeyboardPointer();
+    return;
+  }
+  QPointF direction;
+  for (const int key : std::as_const(pointerKeys_))
+    direction += captureKeyDirection(key);
+  const qreal length = std::hypot(direction.x(), direction.y());
+  const qreal seconds = std::min<qreal>(keyboardMotionClock_.restart(), 40) / 1000;
+  if (length == 0)
+    return;
+  const qreal speed = keyboardFineMotion_ ? 120.0
+      : 240.0 + 1360.0 * std::min<qreal>(keyboardHoldClock_.elapsed() / 350.0, 1);
+  keyboardPosition_ += direction * (speed * seconds / length);
+  keyboardPosition_.setX(std::clamp(keyboardPosition_.x(), 0.0, width() - 1.0));
+  keyboardPosition_.setY(std::clamp(keyboardPosition_.y(), 0.0, height() - 1.0));
+  QMouseEvent motion(QEvent::MouseMove, keyboardPosition_,
+                     mapToGlobal(keyboardPosition_.toPoint()), Qt::NoButton,
+                     Qt::NoButton, Qt::NoModifier);
+  deliveringKeyboardMotion_ = true;
+  mouseMoveEvent(&motion);
+  deliveringKeyboardMotion_ = false;
+  if (capturePointer_)
+    capturePointer_->moveTo({keyboardPosition_.x() / width(),
+                            keyboardPosition_.y() / height()});
 }
 
 bool CaptureEditor::eventFilter(QObject *watched, QEvent *event) {
@@ -2977,6 +3031,7 @@ void CaptureEditor::enterEdit(QString status) {
 }
 
 void CaptureEditor::enterSelectedCapture(QString editStatus) {
+  stopKeyboardPointer();
   if (quickOutputMode_ != QuickOutputMode::None) {
     if (configuredCustomDefaultPending_) {
       pendingSelectedCapture_ = std::move(editStatus);
@@ -3009,6 +3064,7 @@ void CaptureEditor::enterExport() {
 }
 
 void CaptureEditor::handleEscape() {
+  stopKeyboardPointer();
   if (cutDragActive_) {
     cutDragActive_ = false;
     dragging_ = false;
@@ -3684,6 +3740,21 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
     return;
   }
   if (phase_ == Phase::Select) {
+    if (!captureKeyDirection(event->key()).isNull() &&
+        !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+      if (!event->isAutoRepeat()) {
+        if (pointerKeys_.isEmpty()) {
+          keyboardPosition_ = cursor_;
+          keyboardMotionClock_.start();
+          keyboardHoldClock_.start();
+        }
+        pointerKeys_.insert(event->key());
+        keyboardFineMotion_ = event->modifiers().testFlag(Qt::ShiftModifier);
+        keyboardMotionTimer_.start();
+      }
+      event->accept();
+      return;
+    }
     if (event->matches(QKeySequence::SelectAll)) {
       selectFullscreen();
       return;
@@ -3993,6 +4064,15 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
 
 void CaptureEditor::keyReleaseEvent(QKeyEvent *event) {
   modifiersSeen_ = true;
+  if (pointerKeys_.contains(event->key())) {
+    if (!event->isAutoRepeat()) {
+      pointerKeys_.remove(event->key());
+      if (pointerKeys_.isEmpty())
+        keyboardMotionTimer_.stop();
+    }
+    event->accept();
+    return;
+  }
   if (event->key() == Qt::Key_Shift &&
       (creationConstraintActive_ || resizeConstraintActive_)) {
     creationConstraintActive_ = false;
@@ -4203,6 +4283,9 @@ void CaptureEditor::queuePointerRepaint(const QRegion &damage) {
 }
 
 void CaptureEditor::mouseMoveEvent(QMouseEvent *event) {
+  // Compositor echoes must not feed an older position into keyboard motion.
+  if (!pointerKeys_.isEmpty() && !deliveringKeyboardMotion_)
+    return;
   if (panning_) {
     panView(event->position() - panAnchor_);
     panAnchor_ = event->position();

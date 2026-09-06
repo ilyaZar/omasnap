@@ -7486,6 +7486,29 @@ bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
     error = QStringLiteral("capture pointer did not start at monitor center");
     return false;
   }
+  QTest::keyPress(&editor, Qt::Key_L);
+  QTest::qWait(180);
+  QTest::keyRelease(&editor, Qt::Key_L);
+  const QPointF moved = editor.capturePointerPosition();
+  if (moved.x() <= 430 || moved.y() != 300) {
+    error = QStringLiteral("held L did not glide horizontally");
+    return false;
+  }
+  QTest::qWait(60);
+  if (editor.capturePointerPosition() != moved) {
+    error = QStringLiteral("pointer kept moving after key release");
+    return false;
+  }
+  QTest::keyPress(&editor, Qt::Key_H);
+  QTest::keyPress(&editor, Qt::Key_K);
+  QTest::qWait(800);
+  QTest::keyRelease(&editor, Qt::Key_H);
+  QTest::keyRelease(&editor, Qt::Key_K);
+  if (editor.capturePointerPosition().x() < 0 ||
+      editor.capturePointerPosition().y() != 0) {
+    error = QStringLiteral("diagonal keyboard motion escaped monitor bounds");
+    return false;
+  }
   editor.close();
   return true;
 }

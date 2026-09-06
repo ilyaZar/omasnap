@@ -15,6 +15,7 @@
 #include <QRegion>
 #include <QLineF>
 #include <QTimer>
+#include <QSet>
 #include <QWidget>
 
 #include <optional>
@@ -128,6 +129,7 @@ public:
 protected:
   void showEvent(QShowEvent *event) override;
   void hideEvent(QHideEvent *event) override;
+  void focusOutEvent(QFocusEvent *event) override;
   bool eventFilter(QObject *watched, QEvent *event) override;
   void keyPressEvent(QKeyEvent *event) override;
   void keyReleaseEvent(QKeyEvent *event) override;
@@ -635,6 +637,15 @@ private:
   QRectF marqueeRect_;
   QPointF cursor_;
   std::unique_ptr<CapturePointer> capturePointer_;
+  QSet<int> pointerKeys_;
+  QTimer keyboardMotionTimer_;
+  QElapsedTimer keyboardMotionClock_;
+  QElapsedTimer keyboardHoldClock_;
+  QPointF keyboardPosition_;
+  bool deliveringKeyboardMotion_ = false;
+  bool keyboardFineMotion_ = false;
+  void advanceKeyboardPointer();
+  void stopKeyboardPointer();
   bool dragging_ = false;
   bool creationConstraintActive_ = false;
   bool marqueeSelecting_ = false;
