@@ -644,6 +644,8 @@ private:
   QPointF keyboardPosition_;
   bool deliveringKeyboardMotion_ = false;
   bool keyboardFineMotion_ = false;
+  bool keyboardSelecting_ = false;
+  void beginKeyboardSelection();
   void advanceKeyboardPointer();
   void stopKeyboardPointer();
   bool dragging_ = false;

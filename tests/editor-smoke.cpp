@@ -7524,6 +7524,28 @@ bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
     error = QStringLiteral("Enter did not capture the window under the pointer");
     return false;
   }
+  CaptureEditor region(capture);
+  region.resize(800, 600);
+  region.show();
+  application.processEvents();
+  QTest::keyPress(&region, Qt::Key_L, Qt::ControlModifier);
+  QTest::qWait(150);
+  QTest::keyRelease(&region, Qt::Key_L, Qt::ControlModifier);
+  QTest::keyPress(&region, Qt::Key_J, Qt::ControlModifier);
+  QTest::qWait(150);
+  QTest::keyRelease(&region, Qt::Key_J, Qt::ControlModifier);
+  const QRectF drawn = region.currentSelection();
+  if (drawn.topLeft() != QPointF(400, 300) || drawn.width() < 30 ||
+      drawn.height() < 30) {
+    error = QStringLiteral("Ctrl+HJKL did not draw from its fixed anchor");
+    return false;
+  }
+  QTest::keyClick(&region, Qt::Key_Escape);
+  if (!region.currentSelection().isEmpty()) {
+    error = QStringLiteral("Escape did not cancel keyboard selection");
+    return false;
+  }
+  region.close();
   editor.close();
   return true;
 }

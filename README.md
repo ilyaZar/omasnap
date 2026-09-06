@@ -330,6 +330,9 @@ move left/down/up/right; movement accelerates while held. Hold Shift for
 fine positioning. Direction keys can be combined for diagonal motion.
 Press Enter to capture the window under the pointer. HJKL highlights that
 window as the pointer moves; Enter over empty desktop leaves selection open.
+Hold Ctrl with H/J/K/L to anchor a corner and draw a region. Release direction
+keys to pause, keeping Ctrl held while you change direction. Esc cancels the
+rectangle.
 
 Tabs across the top of the overlay switch the capture kind: **Region**,
 **Window**, **Scrolling Region**, **Fullscreen**. All four are modes of the
