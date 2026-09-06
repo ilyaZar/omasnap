@@ -7478,6 +7478,9 @@ bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
   capture.source = QImage(800, 600, QImage::Format_ARGB32_Premultiplied);
   capture.source.fill(QColor("#6480a0"));
   capture.previewSize = capture.source.size();
+  WindowTarget window;
+  window.rect = QRect(200, 150, 400, 300);
+  capture.windows.push_back(window);
   CaptureEditor editor(capture);
   editor.resize(800, 600);
   editor.show();
@@ -7507,6 +7510,18 @@ bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
   if (editor.capturePointerPosition().x() < 0 ||
       editor.capturePointerPosition().y() != 0) {
     error = QStringLiteral("diagonal keyboard motion escaped monitor bounds");
+    return false;
+  }
+  QTest::keyClick(&editor, Qt::Key_Return);
+  if (!editor.currentSelection().isEmpty()) {
+    error = QStringLiteral("Enter captured a window away from the pointer");
+    return false;
+  }
+  QTest::mouseMove(&editor, QPoint(400, 300));
+  QTest::keyClick(&editor, Qt::Key_Return);
+  if (editor.currentSelection() != QRectF(window.rect) ||
+      editor.renderCurrentOutput().size() != window.rect.size()) {
+    error = QStringLiteral("Enter did not capture the window under the pointer");
     return false;
   }
   editor.close();

@@ -3748,6 +3748,10 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
           keyboardMotionClock_.start();
           keyboardHoldClock_.start();
         }
+        if (!dragging_ && !scrollMode_) {
+          windowMode_ = true;
+          hoveredWindow_ = windowAt(cursor_);
+        }
         pointerKeys_.insert(event->key());
         keyboardFineMotion_ = event->modifiers().testFlag(Qt::ShiftModifier);
         keyboardMotionTimer_.start();
@@ -3769,9 +3773,16 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
       update();
       return;
     }
-    if (windowMode_ &&
+    if (!dragging_ && !scrollMode_ && !event->modifiers() &&
         (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)) {
-      chooseWindow(hoveredWindow_);
+      if (!event->isAutoRepeat()) {
+        const int target = windowMode_ ? hoveredWindow_ : windowAt(cursor_);
+        chooseWindow(target);
+        if (target < 0)
+          setStatus(QStringLiteral("No window under pointer · HJKL moves"));
+        update();
+      }
+      event->accept();
       return;
     }
     if (!windowMode_ && !dragging_ && event->key() == Qt::Key_R &&

@@ -328,6 +328,8 @@ Install the corresponding Tesseract language data before adding a language to
 The pointer starts at the center of the focused monitor. Hold H/J/K/L to
 move left/down/up/right; movement accelerates while held. Hold Shift for
 fine positioning. Direction keys can be combined for diagonal motion.
+Press Enter to capture the window under the pointer. HJKL highlights that
+window as the pointer moves; Enter over empty desktop leaves selection open.
 
 Tabs across the top of the overlay switch the capture kind: **Region**,
 **Window**, **Scrolling Region**, **Fullscreen**. All four are modes of the
