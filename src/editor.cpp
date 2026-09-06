@@ -3778,9 +3778,11 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
         }
         if (event->modifiers().testFlag(Qt::ControlModifier))
           beginKeyboardSelection();
-        if (!dragging_ && !scrollMode_) {
+        if (!dragging_ && !scrollMode_ && !windowMode_) {
           windowMode_ = true;
           hoveredWindow_ = windowAt(cursor_);
+          updatePointerCursor();
+          update();
         }
         pointerKeys_.insert(event->key());
         keyboardFineMotion_ = event->modifiers().testFlag(Qt::ShiftModifier);
@@ -4105,6 +4107,24 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
 
 void CaptureEditor::keyReleaseEvent(QKeyEvent *event) {
   modifiersSeen_ = true;
+  if (event->key() == Qt::Key_Control && keyboardSelecting_) {
+    if (!event->isAutoRepeat()) {
+      keyboardSelecting_ = false;
+      stopKeyboardPointer();
+      QMouseEvent release(QEvent::MouseButtonRelease, cursor_,
+                          mapToGlobal(cursor_.toPoint()), Qt::LeftButton,
+                          Qt::NoButton, Qt::NoModifier);
+      mouseReleaseEvent(&release);
+      if (phase_ == Phase::Select &&
+          (selection_.width() < 2 || selection_.height() < 2)) {
+        selection_ = {};
+        setStatus(QStringLiteral("Region too small · Ctrl+HJKL draws"));
+        update();
+      }
+    }
+    event->accept();
+    return;
+  }
   if (pointerKeys_.contains(event->key())) {
     if (!event->isAutoRepeat()) {
       pointerKeys_.remove(event->key());
@@ -4657,6 +4677,8 @@ void CaptureEditor::mouseDoubleClickEvent(QMouseEvent *event) {
 }
 
 void CaptureEditor::mousePressEvent(QMouseEvent *event) {
+  if (keyboardSelecting_)
+    return;
   if (phase_ == Phase::Export || busy_ || capturePending_)
     return;
   if (!ocrResultText_.isEmpty())
@@ -6181,7 +6203,10 @@ void CaptureEditor::paintSelect(QPainter &painter) {
   // selection all paint over it wherever they overlap.
   if (!exporting)
     drawHotkeyLegend(painter, rect(),
-                     {{QStringLiteral("Drag"), QStringLiteral("Area")},
+                     {{QStringLiteral("HJKL"), QStringLiteral("Move pointer (Shift: fine)")},
+                      {QStringLiteral("Enter"), QStringLiteral("Window under pointer")},
+                      {QStringLiteral("Ctrl+HJKL"), QStringLiteral("Draw; release Ctrl to capture")},
+                      {QStringLiteral("Drag"), QStringLiteral("Area")},
                       {QStringLiteral("Space"), QStringLiteral("Window")},
                       {QStringLiteral("Ctrl+A"), QStringLiteral("Fullscreen")},
                       {QStringLiteral("R"), QStringLiteral("Last region")},

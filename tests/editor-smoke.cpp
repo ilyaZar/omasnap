@@ -7471,6 +7471,11 @@ bool runAreaLastRegionSmoke(QApplication &application, QString &error) {
 }
 
 bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
+  const auto key = [](QWidget &target, QEvent::Type type, int code,
+                       Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    QKeyEvent event(type, code, modifiers);
+    QApplication::sendEvent(&target, &event);
+  };
   CaptureData capture;
   capture.monitor.geometry = QRect(100, 200, 800, 600);
   capture.monitor.pixelSize = QSize(800, 600);
@@ -7528,24 +7533,82 @@ bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
   region.resize(800, 600);
   region.show();
   application.processEvents();
-  QTest::keyPress(&region, Qt::Key_L, Qt::ControlModifier);
+  key(region, QEvent::KeyPress, Qt::Key_L, Qt::ControlModifier);
   QTest::qWait(150);
-  QTest::keyRelease(&region, Qt::Key_L, Qt::ControlModifier);
-  QTest::keyPress(&region, Qt::Key_J, Qt::ControlModifier);
+  key(region, QEvent::KeyRelease, Qt::Key_L, Qt::ControlModifier);
+  key(region, QEvent::KeyPress, Qt::Key_J, Qt::ControlModifier);
   QTest::qWait(150);
-  QTest::keyRelease(&region, Qt::Key_J, Qt::ControlModifier);
+  key(region, QEvent::KeyRelease, Qt::Key_J, Qt::ControlModifier);
   const QRectF drawn = region.currentSelection();
   if (drawn.topLeft() != QPointF(400, 300) || drawn.width() < 30 ||
       drawn.height() < 30) {
     error = QStringLiteral("Ctrl+HJKL did not draw from its fixed anchor");
     return false;
   }
-  QTest::keyClick(&region, Qt::Key_Escape);
-  if (!region.currentSelection().isEmpty()) {
-    error = QStringLiteral("Escape did not cancel keyboard selection");
+  QKeyEvent repeatRelease(QEvent::KeyRelease, Qt::Key_Control,
+                          Qt::NoModifier, {}, true);
+  QApplication::sendEvent(&region, &repeatRelease);
+  if (region.currentSelection() != drawn ||
+      !region.operationLog().isEmpty()) {
+    error = QStringLiteral("auto-repeat committed the keyboard rectangle");
+    return false;
+  }
+  key(region, QEvent::KeyRelease, Qt::Key_Control);
+  if (region.currentSelection() != drawn ||
+      region.renderCurrentOutput().size() != drawn.toAlignedRect().size()) {
+    error = QStringLiteral("Ctrl release did not commit the keyboard rectangle");
     return false;
   }
   region.close();
+
+  // Cancellation must leave no latent rectangle that a later Ctrl release saves.
+  CaptureEditor cancelled(capture);
+  cancelled.resize(800, 600);
+  cancelled.show();
+  application.processEvents();
+  key(cancelled, QEvent::KeyPress, Qt::Key_L, Qt::ControlModifier);
+  QTest::qWait(60);
+  QTest::keyClick(&cancelled, Qt::Key_Escape);
+  key(cancelled, QEvent::KeyRelease, Qt::Key_L, Qt::ControlModifier);
+  key(cancelled, QEvent::KeyRelease, Qt::Key_Control);
+  if (!cancelled.currentSelection().isEmpty()) {
+    error = QStringLiteral("cancelled rectangle survived Ctrl release");
+    return false;
+  }
+  cancelled.close();
+
+  CaptureEditor empty(capture);
+  empty.resize(800, 600);
+  empty.show();
+  application.processEvents();
+  key(empty, QEvent::KeyRelease, Qt::Key_Control);
+  key(empty, QEvent::KeyPress, Qt::Key_L, Qt::ControlModifier);
+  QTest::qWait(80);
+  key(empty, QEvent::KeyRelease, Qt::Key_Control);
+  key(empty, QEvent::KeyRelease, Qt::Key_L);
+  if (!empty.currentSelection().isEmpty() || !empty.isVisible()) {
+    error = QStringLiteral("empty or one-dimensional rectangle was captured");
+    return false;
+  }
+  empty.close();
+
+  CaptureEditor interrupted(capture);
+  interrupted.resize(800, 600);
+  interrupted.show();
+  application.processEvents();
+  key(interrupted, QEvent::KeyPress, Qt::Key_J, Qt::ControlModifier);
+  QTest::qWait(80);
+  QFocusEvent focusLost(QEvent::FocusOut);
+  QApplication::sendEvent(&interrupted, &focusLost);
+  const QPointF stopped = interrupted.capturePointerPosition();
+  key(interrupted, QEvent::KeyRelease, Qt::Key_Control);
+  QTest::qWait(50);
+  if (!interrupted.currentSelection().isEmpty() ||
+      interrupted.capturePointerPosition() != stopped) {
+    error = QStringLiteral("focus loss left keyboard capture running");
+    return false;
+  }
+  interrupted.close();
   editor.close();
   return true;
 }
