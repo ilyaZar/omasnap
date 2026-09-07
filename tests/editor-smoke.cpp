@@ -7700,7 +7700,7 @@ int main(int argc, char **argv) {
   }
   QString snapshotError;
   if (!runKeyboardCaptureSmoke(application, snapshotError)) {
-    qCritical().noquote() << snapshotError;
+    qWarning().noquote() << snapshotError;
     return 130;
   }
   if (!runAreaLastRegionSmoke(application, snapshotError)) {
