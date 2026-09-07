@@ -455,6 +455,7 @@ CapturePointer::CapturePointer(const QString &outputName)
         return;
       const QPointF position = state->position;
       state->pending = false;
+      lock.unlock();
       // Fractions map to the bound output, including its scale and rotation.
       constexpr uint32_t extent = 1000000;
       zwlr_virtual_pointer_v1_motion_absolute(
@@ -467,6 +468,7 @@ CapturePointer::CapturePointer(const QString &outputName)
         qWarning() << "capture pointer: Wayland motion failed";
         return;
       }
+      lock.lock();
     }
   }).detach();
 }
