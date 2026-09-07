@@ -7561,6 +7561,32 @@ bool runKeyboardCaptureSmoke(QApplication &application, QString &error) {
   }
   region.close();
 
+  for (const auto modifiers : {Qt::NoModifier, Qt::ControlModifier}) {
+    CaptureEditor fine(capture);
+    fine.resize(800, 600);
+    fine.show();
+    application.processEvents();
+    key(fine, QEvent::KeyPress, Qt::Key_H, modifiers);
+    QTest::qWait(60);
+    key(fine, QEvent::KeyPress, Qt::Key_Shift,
+        modifiers | Qt::ShiftModifier);
+    const qreal beforeFine = fine.capturePointerPosition().x();
+    QTest::qWait(120);
+    const qreal afterFine = fine.capturePointerPosition().x();
+    if (beforeFine - afterFine <= 0 || beforeFine - afterFine > 30) {
+      error = QStringLiteral("Shift press did not slow held keyboard motion");
+      return false;
+    }
+    key(fine, QEvent::KeyRelease, Qt::Key_Shift, modifiers);
+    QTest::qWait(120);
+    if (afterFine - fine.capturePointerPosition().x() < 50) {
+      error = QStringLiteral("Shift release did not restore keyboard speed");
+      return false;
+    }
+    key(fine, QEvent::KeyRelease, Qt::Key_H, modifiers);
+    fine.close();
+  }
+
   // Cancellation must leave no latent rectangle that a later Ctrl release saves.
   CaptureEditor cancelled(capture);
   cancelled.resize(800, 600);

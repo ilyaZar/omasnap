@@ -3762,6 +3762,11 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
     return;
   }
   if (phase_ == Phase::Select) {
+    if (event->key() == Qt::Key_Shift) {
+      keyboardFineMotion_ = true;
+      event->accept();
+      return;
+    }
     if (event->key() == Qt::Key_Control && !pointerKeys_.isEmpty() &&
         !event->isAutoRepeat()) {
       beginKeyboardSelection();
@@ -4107,6 +4112,8 @@ void CaptureEditor::keyPressEvent(QKeyEvent *event) {
 
 void CaptureEditor::keyReleaseEvent(QKeyEvent *event) {
   modifiersSeen_ = true;
+  if (event->key() == Qt::Key_Shift && !event->isAutoRepeat())
+    keyboardFineMotion_ = false;
   if (event->key() == Qt::Key_Control && keyboardSelecting_) {
     if (!event->isAutoRepeat()) {
       keyboardSelecting_ = false;
